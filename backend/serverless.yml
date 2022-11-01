@@ -131,7 +131,7 @@ functions:
         Resource: !GetAtt AttachmentsBucket.Arn
       - Effect: Allow
         Action:
-          - dynamodb:DeleteItem
+          - dynamodb:UpdateItem
         Resource: !GetAtt TodosTable.Arn
 
 resources:

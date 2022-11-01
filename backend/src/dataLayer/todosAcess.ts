@@ -95,6 +95,27 @@ export class TodosAccess {
 
         return !!result.Item
     }
+
+    async updateAttachmentUrl(userId: string, todoId: string, uploadUrl: string): Promise<string> {
+        logger.info('Update attachment'+ uploadUrl);
+
+        await this.docClient.update({
+            TableName: this.todoTable,
+            Key: {
+                userId: userId,
+                todoId: todoId
+            },
+            UpdateExpression: 'set attachmentUrl = :attachmentUrl',
+            ExpressionAttributeValues: {
+                ':attachmentUrl': uploadUrl.split("?")[0]
+            }
+        }, function (err, data) {
+            if (err) logger.error(err);
+            else logger.info(data);
+        }).promise()
+        logger.info('Update attachment result: ' + uploadUrl);
+        return uploadUrl
+    }
 }
 
 function createDynamoDBClient() {

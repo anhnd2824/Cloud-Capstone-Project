@@ -4,8 +4,8 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda'
 import * as middy from 'middy'
 import { cors, httpErrorHandler } from 'middy/middlewares'
 
-import { createAttachmentPresignedUrl } from '../../helpers/todos'
-// import { getUserId } from '../utils'
+import { createAttachmentPresignedUrl, updateAttachmentUrl } from '../../businessLogic/todos'
+import { getUserId } from '../utils'
 import { createLogger } from '../../utils/logger'
 
 const logger = createLogger('generateUploadUrl')
@@ -18,6 +18,11 @@ export const handler = middy(
     const uploadUrl = await createAttachmentPresignedUrl(todoId)
     logger.info('Upload url was created', uploadUrl)
 
+    const userId = getUserId(event)
+    logger.info('User id', userId)
+
+    await updateAttachmentUrl(userId, todoId, uploadUrl)
+    
     return {
       statusCode: 202,
       headers: {
