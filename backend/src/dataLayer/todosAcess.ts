@@ -11,6 +11,8 @@ const XAWS = AWSXRay.captureAWS(AWS)
 
 const logger = createLogger('TodosAccess')
 
+const thumbnailBucketName = process.env.THUMBNAILS_S3_BUCKET
+
 export class TodosAccess {
     constructor(
         private readonly docClient: DocumentClient = createDynamoDBClient(),
@@ -96,10 +98,11 @@ export class TodosAccess {
         return !!result.Item
     }
 
-    async updateAttachmentUrl(userId: string, todoId: string, uploadUrl: string): Promise<string> {
+    async updateAttachmentUrl(userId: string, todoId: string): Promise<string> {
+        const uploadUrl = `https://${thumbnailBucketName}.s3.amazonaws.com/${todoId}.jpeg`
         logger.info('Update attachment'+ uploadUrl);
 
-        await this.docClient.update({
+        const result = await this.docClient.update({
             TableName: this.todoTable,
             Key: {
                 userId: userId,
@@ -107,13 +110,13 @@ export class TodosAccess {
             },
             UpdateExpression: 'set attachmentUrl = :attachmentUrl',
             ExpressionAttributeValues: {
-                ':attachmentUrl': uploadUrl.split("?")[0]
+                ':attachmentUrl': uploadUrl
             }
         }, function (err, data) {
             if (err) logger.error(err);
             else logger.info(data);
         }).promise()
-        logger.info('Update attachment result: ' + uploadUrl);
+        logger.info('Update attachment result: ' + result);
         return uploadUrl
     }
 }

@@ -26,7 +26,9 @@ provider:
     TODOS_CREATED_AT_INDEX: CreatedAtIndex
     ATTACHMENT_S3_BUCKET: anhnd2824-serverless-c4-todo-images-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 300
-
+    CONNECTIONS_TABLE: Connections-${self:provider.stage}
+    THUMBNAILS_S3_BUCKET: anhnd2824-serverless-c4-todo-thumbnail-${self:provider.stage}
+  
   logs:
     # Enable API Gateway logs
     restApi: true
@@ -39,6 +41,10 @@ provider:
             - xray:PutTelemetryRecords
             - xray:PutTraceSegments
           Resource: "*"
+
+custom:
+  topicName: imagesTopic-${self:provider.stage}
+  appId: tr5yipuwcd
 
 functions:
   Auth:
@@ -133,6 +139,55 @@ functions:
         Action:
           - dynamodb:UpdateItem
         Resource: !GetAtt TodosTable.Arn
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+        Resource: !GetAtt ThumbnailsBucket.Arn
+    
+  SendUploadNotifications:
+    environment:
+      STAGE: ${self:provider.stage}
+      API_ID: ${self:custom.appId}
+    handler: src/lambda/s3/sendNotifications.handler
+    events:
+      - sns:
+          arn:
+            Fn::Join:
+              - ':'
+              - - arn:aws:sns
+                - Ref: AWS::Region
+                - Ref: AWS::AccountId
+                - ${self:custom.topicName}
+          topicName: ${self:custom.topicName}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Scan
+          - dynamodb:PutItem
+          - dynamodb:DeleteItem
+        Resource: !GetAtt WebSocketConnectionsDynamoDBTable.Arn
+
+  ResizeImage:
+    handler: src/lambda/s3/resizeImage.handler
+    events:
+      - sns:
+          arn:
+            Fn::Join:
+              - ':'
+              - - arn:aws:sns
+                - Ref: AWS::Region
+                - Ref: AWS::AccountId
+                - ${self:custom.topicName}
+          topicName: ${self:custom.topicName}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - s3:putObject
+        Resource: !GetAtt ThumbnailsBucket.Arn
+      - Effect: Allow
+        Action:
+          - s3:GetObject
+        Resource: !GetAtt AttachmentsBucket.Arn
 
 resources:
   Resources:
@@ -185,8 +240,13 @@ resources:
 
     AttachmentsBucket:
       Type: AWS::S3::Bucket
+      DependsOn: SNSTopicPolicy
       Properties:
         BucketName: ${self:provider.environment.ATTACHMENT_S3_BUCKET}
+        NotificationConfiguration:
+          TopicConfigurations:
+            - Topic: !Ref ImagesTopic
+              Event: s3:ObjectCreated:Put                 
         CorsConfiguration:
           CorsRules:
             - AllowedOrigins:
@@ -201,11 +261,11 @@ resources:
                 - HEAD
               MaxAge: 3000
 
-    BucketPolicy:
+    AttachmentBucketPolicy:
       Type: AWS::S3::BucketPolicy
       Properties:
         PolicyDocument:
-          Id: MyPolicy
+          Id: MyAttachmentPolicy
           Version: "2012-10-17"
           Statement:
             - Sid: PublicReadForGetBucketObjects
@@ -216,3 +276,62 @@ resources:
                 - s3:PutObject
               Resource: "arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}/*"
         Bucket: !Ref AttachmentsBucket
+
+    ThumbnailBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        PolicyDocument:
+          Id: MyAttachmentPolicy
+          Version: "2012-10-17"
+          Statement:
+            - Sid: PublicReadForGetBucketObjects
+              Effect: Allow
+              Principal: "*"
+              Action: 
+                - s3:GetObject
+                - s3:PutObject
+              Resource: "arn:aws:s3:::${self:provider.environment.THUMBNAILS_S3_BUCKET}/*"
+        Bucket: !Ref ThumbnailsBucket
+                
+    ImagesTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        DisplayName: Image bucket topic
+        TopicName: ${self:custom.topicName}
+    
+    SNSTopicPolicy:
+      Type: AWS::SNS::TopicPolicy
+      Properties:
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                AWS: "*"
+              Action: sns:Publish
+              Resource:
+                !Ref ImagesTopic
+              Condition:
+                ArnLike:
+                  AWS:SourceArn: arn:aws:s3:::${self:provider.environment.ATTACHMENT_S3_BUCKET}
+        Topics:
+          - !Ref ImagesTopic
+
+    WebSocketConnectionsDynamoDBTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.CONNECTIONS_TABLE}
+
+    ThumbnailsBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:provider.environment.THUMBNAILS_S3_BUCKET}

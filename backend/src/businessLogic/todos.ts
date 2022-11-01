@@ -49,9 +49,9 @@ export async function createAttachmentPresignedUrl(todoId: string): Promise<stri
     return await attachmentUtils.createAttachmentPresignedUrl(todoId)
 }
 
-export async function updateAttachmentUrl(userId: string, todoId: string, uploadUrl: string): Promise<string> {
+export async function updateAttachmentUrl(userId: string, todoId: string): Promise<string> {
     logger.info('Update attachment')
-    return await todoAccess.updateAttachmentUrl(userId, todoId, uploadUrl)
+    return await todoAccess.updateAttachmentUrl(userId, todoId)
 }
 
 export async function todoExists(todoId: string): Promise<Boolean> {

@@ -21,7 +21,7 @@ export const handler = middy(
     const userId = getUserId(event)
     logger.info('User id', userId)
 
-    await updateAttachmentUrl(userId, todoId, uploadUrl)
+    await updateAttachmentUrl(userId, todoId)
     
     return {
       statusCode: 202,

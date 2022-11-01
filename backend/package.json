@@ -14,7 +14,8 @@
     "ts-node": "^10.9.1",
     "ts-node-dev": "^2.0.0",
     "uuid": "^3.3.2",
-    "winston": "^3.2.1"
+    "winston": "^3.2.1",
+    "jimp": "^0.6.4"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.17",
